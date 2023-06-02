@@ -49,10 +49,10 @@ async function makePayment(data) {
         const currentTime = new Date();
         // console.log(bookingTime);
         // console.log(currentTime-bookingTime);
-        
+
         if (currentTime - bookingTime > 300000) {
-        //     // await cancelBooking(data.bookingId);
-            await bookingRepository.update(data.bookingId, { status: CANCELLED }, transaction);
+            await cancelBooking(data.bookingId);
+            // await bookingRepository.update(data.bookingId, { status: CANCELLED }, transaction);
             throw new AppError('The booking has expired', StatusCodes.BAD_REQUEST);
         }
         if (bookingDetails.totalCost != data.totalCost) {
@@ -71,27 +71,27 @@ async function makePayment(data) {
     }
 }
 
-// async function cancelBooking(bookingId) {
-//     const transaction = await db.sequelize.transaction();
-//     try {
-//         const bookingDetails = await bookingRepository.get(bookingId, transaction);
-//         console.log(bookingDetails);
-//         if (bookingDetails.status == CANCELLED) {
-//             await transaction.commit();
-//             return true;
-//         }
-//         await axios.patch(`${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${bookingDetails.flightId}/seats`, {
-//             seats: bookingDetails.noofSeats,
-//             dec: 0
-//         });
-//         await bookingRepository.update(bookingId, { status: CANCELLED }, transaction);
-//         await transaction.commit();
+async function cancelBooking(bookingId) {
+    const transaction = await db.sequelize.transaction();
+    try {
+        const bookingDetails = await bookingRepository.get(bookingId, transaction);
+        console.log(bookingDetails);
+        if (bookingDetails.status == CANCELLED) {
+            await transaction.commit();
+            return true;
+        }
+        await axios.patch(`${ServerConfig.FLIGHT_SERVICE}/api/v1/flights/${bookingDetails.flightId}/seats`, {
+            seats: bookingDetails.noofSeats,
+            dec: 0
+        });
+        await bookingRepository.update(bookingId, { status: CANCELLED }, transaction);
+        await transaction.commit();
 
-//     } catch (error) {
-//         await transaction.rollback();
-//         throw error;
-//     }
-// }
+    } catch (error) {
+        await transaction.rollback();
+        throw error;
+    }
+}
 
 // async function cancelOldBookings() {
 //     try {
