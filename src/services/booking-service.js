@@ -2,7 +2,7 @@ const axios = require('axios');
 const { StatusCodes } = require('http-status-codes');
 
 const { BookingRepository } = require('../repositories');
-const { ServerConfig } = require('../config')
+const { ServerConfig, Queue } = require('../config')
 const db = require('../models');
 const AppError = require('../utils/errors/app-error');
 const { Enums } = require('../utils/common');
@@ -43,16 +43,11 @@ async function makePayment(data) {
         if (bookingDetails.status == CANCELLED) {
             throw new AppError('The booking has expired', StatusCodes.BAD_REQUEST);
         }
-        // console.log(bookingDetails);
-        // console.log(bookingDetails.status)
+        console.log(bookingDetails);
         const bookingTime = new Date(bookingDetails.createdAt);
         const currentTime = new Date();
-        // console.log(bookingTime);
-        // console.log(currentTime-bookingTime);
-
         if (currentTime - bookingTime > 300000) {
             await cancelBooking(data.bookingId);
-            // await bookingRepository.update(data.bookingId, { status: CANCELLED }, transaction);
             throw new AppError('The booking has expired', StatusCodes.BAD_REQUEST);
         }
         if (bookingDetails.totalCost != data.totalCost) {
@@ -62,10 +57,15 @@ async function makePayment(data) {
             throw new AppError('The user corresponding to the booking doesnt match', StatusCodes.BAD_REQUEST);
         }
         // we assume here that payment is successful
-        const response = await bookingRepository.update(data.bookingId, { status: BOOKED }, transaction);
+        await bookingRepository.update(data.bookingId, { status: BOOKED }, transaction);
+        Queue.sendData({
+            recepientEmail: 'ashismunmun11@gmail.com',
+            subject: 'Flight booked',
+            text: `Booking successfully done for the booking ${data.bookingId}`
+        });
         await transaction.commit();
+
     } catch (error) {
-        console.log('Inside rollback booking service')
         await transaction.rollback();
         throw error;
     }
@@ -98,6 +98,7 @@ async function cancelOldBookings() {
         console.log("Inside service")
         const time = new Date(Date.now() - 1000 * 300); // time 5 mins ago
         const response = await bookingRepository.cancelOldBookings(time);
+
         return response;
     } catch (error) {
         console.log(error);
